@@ -18,6 +18,27 @@ typedef struct chip8
     unsigned char sound_timer;
 } Chip8;
 
+// Chip8 Fontset
+unsigned char chip8_fontset[80] =
+{ 
+    0xF0, 0x90, 0x90, 0x90, 0xF0, //0
+    0x20, 0x60, 0x20, 0x20, 0x70, //1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, //2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, //3
+    0x90, 0x90, 0xF0, 0x10, 0x10, //4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, //5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, //6
+    0xF0, 0x10, 0x20, 0x40, 0x40, //7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, //8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, //9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, //A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, //B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, //C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, //D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, //E
+    0xF0, 0x80, 0xF0, 0x80, 0x80  //F
+};
+
 CHIP8 chip8_init_default(void)
 {
     Chip8* pChip8 = (Chip8*)malloc(sizeof(Chip8));
@@ -81,6 +102,7 @@ Status chip8_load_rom(CHIP8 hChip8, FILE* fp)
 {
     Chip8* pChip8 = (Chip8*)hChip8;
     fseek(fp, 0, SEEK_END);
+    rewind(fp);
     long rom_size = ftell(fp);
 
     char* buffer = (char*)malloc(sizeof(char) * rom_size);
@@ -248,25 +270,27 @@ void chip8_emulate_cycle(CHIP8 hChip8)
     case 0xD000: // DXYN - Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels
                  // Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not change after the execution of this instruction 
                  // VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen
-        unsigned char x = pChip8->V[(pChip8->opcode & 0x0F00) >> 8];
-        unsigned char y = pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
-        unsigned char height = pChip8->opcode & 0x000F;
-
-        for (int current_y; current_y < height; current_y++)
         {
-            unsigned char current_row = pChip8->memory[pChip8->I + current_y];
-            for (int current_x = 0; current_x < 8; current_x++)
-            {
-                if ((current_row & (0x80 >> current_x)) == 1)
-                    pChip8->V[0xF] = 1;
-                else
-                    pChip8->V[0xF] = 0;
-                pChip8->gfx[(x + current_x) * (y + current_y)] ^= (current_row & (0x80 >> current_x));
-            }
-        }
+            unsigned char x = pChip8->V[(pChip8->opcode & 0x0F00) >> 8];
+            unsigned char y = pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+            unsigned char height = pChip8->opcode & 0x000F;
 
-        pChip8->draw_flag = TRUE;
-        pChip8->pc += 2;
+            for (int current_y; current_y < height; current_y++)
+            {
+                unsigned char current_row = pChip8->memory[pChip8->I + current_y];
+                for (int current_x = 0; current_x < 8; current_x++)
+                {
+                    if ((current_row & (0x80 >> current_x)) == 1)
+                        pChip8->V[0xF] = 1;
+                    else
+                        pChip8->V[0xF] = 0;
+                    pChip8->gfx[(x + current_x) * (y + current_y)] ^= (current_row & (0x80 >> current_x));
+                }
+            }
+
+            pChip8->draw_flag = TRUE;
+            pChip8->pc += 2;
+        } 
         // !!! IF CODE DOES NOT WORK THIS IS THE FIRST THING TO CHECK !!!
         break;
     case 0xE000:
@@ -295,19 +319,21 @@ void chip8_emulate_cycle(CHIP8 hChip8)
             pChip8->pc += 2;
             break;
         case 0x000A: // FX0A - A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next key event)
-            Boolean key_pressed = FALSE;
-            for (int i = 0; i < NUM_OF_KEYS; i++)
             {
-                if (pChip8->key[i] == 1)
+                Boolean key_pressed = FALSE;
+                for (int i = 0; i < NUM_OF_KEYS; i++)
                 {
-                    key_pressed = TRUE;
-                    pChip8->V[(pChip8->opcode & 0x0F00) >> 8] = i;
+                    if (pChip8->key[i] == 1)
+                    {
+                        key_pressed = TRUE;
+                        pChip8->V[(pChip8->opcode & 0x0F00) >> 8] = i;
+                    }
                 }
-            }
 
-            if (!key_pressed)
-                return;
-            pChip8->pc += 2;
+                if (!key_pressed)
+                    return;
+                pChip8->pc += 2;
+            }
             break;
         case 0x0015: // FX15 - Sets the delay timer to VX
             pChip8->delay_timer = pChip8->V[(pChip8->opcode & 0x0F00) >> 8];
@@ -334,18 +360,22 @@ void chip8_emulate_cycle(CHIP8 hChip8)
             break;
         case 0x0055: // FX55 - Stores from V0 to VX (including VX) in memory, starting at address I
                      // The offset from I is increased by 1 for each value written, but I itself is left unmodified
-            int offset = (pChip8->opcode & 0x0F00) >> 8;
-            for (int i = 0; i <= offset; i++)
-                pChip8->memory[pChip8->I + i];
-            pChip8->pc += 2;
+            {
+                int offset = (pChip8->opcode & 0x0F00) >> 8;
+                for (int i = 0; i <= offset; i++)
+                    pChip8->memory[pChip8->I + i];
+                pChip8->pc += 2;
             // !!! ON THE OG CHIP8 I is modified but the wikipedia opcodes say it doesnt matter so if theres bugs add that !!!
+            }
             break;
-        case 0x0065: // Fills from V0 to VX (including VX) with values from memory, starting at address I
+        case 0x0065:; // Fills from V0 to VX (including VX) with values from memory, starting at address I
                      // The offset from I is increased by 1 for each value read, but I itself is left unmodified
-            int offset = (pChip8->opcode & 0x0F00) >> 8;
-            for (int i = 0; i <= offset; i++)
-                pChip8->V[i] = pChip8->memory[pChip8->I + i];
-            pChip8->pc += 2;
+            {
+                int offset = (pChip8->opcode & 0x0F00) >> 8;
+                for (int i = 0; i <= offset; i++)
+                    pChip8->V[i] = pChip8->memory[pChip8->I + i];
+                pChip8->pc += 2;
+            }
             break;
         default:
             printf("Unknown Opcode [0xF000]: 0x%x\n", pChip8->opcode);
