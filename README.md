@@ -16,7 +16,6 @@ To run a rom input the following command.
 ```
 
 Controls:
-│ ─ ┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘
 ```
                ┌─┬─┬─┬─┐                                  ┌─┬─┬─┬─┐  
                │1│2│3│C│                                  │1│2│3│4│  

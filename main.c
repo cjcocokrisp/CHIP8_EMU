@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
         printf("Rom does not exist or failed to read!\n");
         exit(1);
     }
-    Status load_status = chip8_load_rom(hChip8, fp); // ROM PROCESSING NEEDS TO BE ADDED
+    Status load_status = chip8_load_rom(hChip8, fp);
     if (load_status == FAILURE)
     {
         printf("Failed to load rom!\n");
