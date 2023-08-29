@@ -102,8 +102,8 @@ Status chip8_load_rom(CHIP8 hChip8, FILE* fp)
 {
     Chip8* pChip8 = (Chip8*)hChip8;
     fseek(fp, 0, SEEK_END);
-    rewind(fp);
     long rom_size = ftell(fp);
+    rewind(fp);
 
     char* buffer = (char*)malloc(sizeof(char) * rom_size);
     if (buffer == NULL)
@@ -170,19 +170,19 @@ void chip8_emulate_cycle(CHIP8 hChip8)
         pChip8->pc = pChip8->opcode & 0x0FFF;
         break;
     case 0x3000: // 3XNN - Skips the next instruction if VX equals NN (usually the next instruction is a jump to skip a code block)
-        if (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] == pChip8->opcode & 0x00FF)
+        if ((pChip8->V[(pChip8->opcode & 0x0F00) >> 8]) == (pChip8->opcode & 0x00FF))
             pChip8->pc += 4;
         else
             pChip8->pc += 2;
         break;
     case 0x4000: // 4XNN - Skips the next instruction if VX does not equal NN (usually the next instruction is a jump to skip a code block)
-        if (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] != pChip8->opcode & 0x00FF)
+        if ((pChip8->V[(pChip8->opcode & 0x0F00) >> 8]) != (pChip8->opcode & 0x00FF))
             pChip8->pc += 4;
         else
             pChip8->pc += 2;
         break;
     case 0x5000: // 5XY0 - Skips the next instruction if VX equals VY (usually the next instruction is a jump to skip a code block)
-        if (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] == pChip8->V[(pChip8->opcode & 0x00F0) >> 4])
+        if ((pChip8->V[(pChip8->opcode & 0x0F00) >> 8]) == (pChip8->V[(pChip8->opcode & 0x00F0) >> 4]))
             pChip8->pc += 4;
         else
             pChip8->pc += 2;
@@ -204,30 +204,43 @@ void chip8_emulate_cycle(CHIP8 hChip8)
                 break;
             case 0x0001: // 8XY1 - Sets VX to VX or VY (bitwise OR operation)
                 pChip8->V[(pChip8->opcode & 0x0F00) >> 8] |= pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+                pChip8->V[0xF] = 0;
                 pChip8->pc += 2;
                 break;
             case 0x0002: // 8XY2 - Sets VX to VX and VY (bitwise AND operation)
                 pChip8->V[(pChip8->opcode & 0x0F00) >> 8] &= pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+                pChip8->V[0xF] = 0;
                 pChip8->pc += 2;
                 break;
             case 0x0003: // 8XY3 - Sets VX to VX xor VY (bitwise XOR operation)
                 pChip8->V[(pChip8->opcode & 0x0F00) >> 8] ^= pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+                pChip8->V[0xF] = 0;
                 pChip8->pc += 2;
                 break;
             case 0x0004: // 8XY4 - Adds VY to VX, VF is set to 1 when there's a carry, and to 0 when there is not
-                if ((pChip8->V[pChip8->opcode & 0x00F0] >> 4) > (0xFF - pChip8->V[(pChip8->opcode & 0x0F00) >> 8]))
+                if (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] + pChip8->V[(pChip8->opcode & 0x00F0) >> 4] > 0xFF)
+                {
+                    pChip8->V[(pChip8->opcode & 0x0F00) >> 8] += pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
                     pChip8->V[0xF] = 1;
+                }
                 else
+                {
+                    pChip8->V[(pChip8->opcode & 0x0F00) >> 8] += pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
                     pChip8->V[0xF] = 0;
-                pChip8->V[(pChip8->opcode & 0x0F00) >> 8] += pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+                }
                 pChip8->pc += 2;
                 break;
             case 0x0005: // 8XY5 - VY is subtracted from VX, VF is set to 0 when there's a borrow, and 1 when there is not
-                if (pChip8->V[(pChip8->opcode & 0x00F0) >> 4] > pChip8->V[(pChip8->opcode & 0x0F00) >> 8])
-                    pChip8->V[0xF] = 1;
+                if (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] - pChip8->V[(pChip8->opcode & 0x00F0) >> 4] < 0x00)
+                {
+                    pChip8->V[(pChip8->opcode & 0x0F00) >> 8] -= pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+                    pChip8->V[0xF] = 0;
+                }
                 else
-                    pChip8->V[0xF] = 0; 
-                pChip8->V[(pChip8->opcode & 0x0F00) >> 8] -= pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+                {
+                    pChip8->V[(pChip8->opcode & 0x0F00) >> 8] -= pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
+                    pChip8->V[0xF] = 1; 
+                }
                 pChip8->pc += 2;
                 break;
             case 0x0006: // 8XY6 - Stores the least significant bit of VX in VF and then shifts VX to the right by 1
@@ -236,14 +249,15 @@ void chip8_emulate_cycle(CHIP8 hChip8)
                 pChip8->pc += 2;
                 break;
             case 0x0007: // 8XY7 - Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there is not
+                pChip8->V[(pChip8->opcode & 0x0F00) >> 8] = pChip8->V[(pChip8->opcode & 0x00F0) >> 4] - pChip8->V[(pChip8->opcode & 0x0F00) >> 8];
                 if (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] > pChip8->V[(pChip8->opcode & 0x00F0) >> 4])
                     pChip8->V[0xF] = 0;
                 else 
                     pChip8->V[0xF] = 1;
-                pChip8->V[(pChip8->opcode & 0x0F00) >> 8] = pChip8->V[(pChip8->opcode & 0x00F0) >> 4] - pChip8->V[(pChip8->opcode & 0x0F00) >> 8];
+                pChip8->pc += 2;
                 break;
             case 0x000E: // 8XYE - Stores the most significant bit of VX in VF and then shifts VX to the left by 1
-                pChip8->V[0xF] = pChip8->V[(pChip8->opcode & 0x0F00) >> 8] >> 7;
+                pChip8->V[0xF] = pChip8->V[(pChip8->opcode & 0x0F00) >> 8] >> 0x7;
                 pChip8->V[(pChip8->opcode & 0x0F00) >> 8] <<= 1;
                 pChip8->pc += 2;
                 break;
@@ -252,13 +266,14 @@ void chip8_emulate_cycle(CHIP8 hChip8)
         }
         break;
     case 0x9000: // 9XY0 - Skips the next instruction if VX does not equal VY (usually the next instruction is a jump to skip a code block)
-        if (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] != pChip8->V[(pChip8->opcode & 0x00F0) >> 4])
+        if ((pChip8->V[(pChip8->opcode & 0x0F00) >> 8]) != (pChip8->V[(pChip8->opcode & 0x00F0) >> 4]))
             pChip8->pc += 4;
         else
             pChip8->pc += 2;
         break;
     case 0xA000: // ANNN - Sets I to the address NNN
         pChip8->I = pChip8->opcode & 0x0FFF;
+        pChip8->pc += 2;
         break;
     case 0xB000: // BNNN - Jumps to the address NNN plus V0
         pChip8->pc = (pChip8->opcode & 0x0FFF) + pChip8->V[0x0];
@@ -274,24 +289,26 @@ void chip8_emulate_cycle(CHIP8 hChip8)
             unsigned char x = pChip8->V[(pChip8->opcode & 0x0F00) >> 8];
             unsigned char y = pChip8->V[(pChip8->opcode & 0x00F0) >> 4];
             unsigned char height = pChip8->opcode & 0x000F;
+            unsigned char current_row;
 
-            for (int current_y; current_y < height; current_y++)
+            pChip8->V[0xF] = 0;
+            for (int current_y = 0; current_y < height; current_y++)
             {
-                unsigned char current_row = pChip8->memory[pChip8->I + current_y];
+                current_row = pChip8->memory[pChip8->I + current_y];
                 for (int current_x = 0; current_x < 8; current_x++)
                 {
-                    if ((current_row & (0x80 >> current_x)) == 1)
-                        pChip8->V[0xF] = 1;
-                    else
-                        pChip8->V[0xF] = 0;
-                    pChip8->gfx[(x + current_x) * (y + current_y)] ^= (current_row & (0x80 >> current_x));
-                }
+                    if ((current_row & (0x80 >> current_x)) != 0)
+                    { 
+                        if (pChip8->gfx[x + current_x + ((y + current_y) * SCREEN_WIDTH)] == 1)
+                            pChip8->V[0xF] = 1;
+                        pChip8->gfx[x + current_x + ((y + current_y) * SCREEN_WIDTH)] ^= 1;
+                    }
+                }   
             }
 
             pChip8->draw_flag = TRUE;
             pChip8->pc += 2;
         } 
-        // !!! IF CODE DOES NOT WORK THIS IS THE FIRST THING TO CHECK !!!
         break;
     case 0xE000:
         switch(pChip8->opcode & 0x00FF)
@@ -311,6 +328,7 @@ void chip8_emulate_cycle(CHIP8 hChip8)
         default:
             printf("Unknown Opcode [0xE000]: 0x%x\n", pChip8->opcode);
         }
+        break;
     case 0xF000:
         switch (pChip8->opcode & 0x00FF)
         {
@@ -329,7 +347,6 @@ void chip8_emulate_cycle(CHIP8 hChip8)
                         pChip8->V[(pChip8->opcode & 0x0F00) >> 8] = i;
                     }
                 }
-
                 if (!key_pressed)
                     return;
                 pChip8->pc += 2;
@@ -346,7 +363,6 @@ void chip8_emulate_cycle(CHIP8 hChip8)
         case 0x001E: // FX1E - Adds VX to I. VF is not affected
             pChip8->I += pChip8->V[(pChip8->opcode & 0x0F00) >> 8];
             pChip8->pc += 2;
-            // !!! VF is not affected BUT guide says to affect it if there is bugs add that !!!
             break;
         case 0x0029: // FX29 - Sets I to the location of the sprite for the character in VX. Characters 0-F (in hexadecimal) are represented by a 4x5 font
             pChip8->I = pChip8->V[(pChip8->opcode & 0x0F00) >> 8] * 0x5;
@@ -356,16 +372,16 @@ void chip8_emulate_cycle(CHIP8 hChip8)
                      // memory at location in I, the tens digit at location I+1, and the ones digit at location I+2
             pChip8->memory[pChip8->I] = pChip8->V[(pChip8->opcode & 0x0F00) >> 8] / 100;
             pChip8->memory[(pChip8->I) + 1] = (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] / 10) % 10;
-            pChip8->memory[(pChip8->I) + 2] = (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] / 100) % 10;
+            pChip8->memory[(pChip8->I) + 2] = (pChip8->V[(pChip8->opcode & 0x0F00) >> 8] % 100) % 10;
+            pChip8->pc += 2;
             break;
         case 0x0055: // FX55 - Stores from V0 to VX (including VX) in memory, starting at address I
                      // The offset from I is increased by 1 for each value written, but I itself is left unmodified
             {
                 int offset = (pChip8->opcode & 0x0F00) >> 8;
                 for (int i = 0; i <= offset; i++)
-                    pChip8->memory[pChip8->I + i];
+                    pChip8->memory[pChip8->I + i] = pChip8->V[i];
                 pChip8->pc += 2;
-            // !!! ON THE OG CHIP8 I is modified but the wikipedia opcodes say it doesnt matter so if theres bugs add that !!!
             }
             break;
         case 0x0065:; // Fills from V0 to VX (including VX) with values from memory, starting at address I
@@ -390,10 +406,147 @@ void chip8_emulate_cycle(CHIP8 hChip8)
         pChip8->delay_timer--;
     if (pChip8->sound_timer > 0)
     {
-        if (pChip8->sound_timer == 1)
-            printf("INSERT SFX\n");
         pChip8->sound_timer--;
     }
+}
+
+unsigned char* chip8_get_gfx(CHIP8 hChip8)
+{
+    Chip8* pChip8 = (Chip8*)hChip8;
+    return pChip8->gfx;
+}
+
+Boolean chip8_get_draw_flag(CHIP8 hChip8)
+{
+    Chip8* pChip8 = (Chip8*)hChip8;
+    return pChip8->draw_flag;
+}
+
+int chip8_get_sound_timer(CHIP8 hChip8)
+{
+    Chip8* pChip8 = (Chip8*)hChip8;
+    return pChip8->sound_timer;
+}
+
+void chip8_set_draw_flag(CHIP8 hChip8, Boolean value)
+{
+    Chip8* pChip8 = (Chip8*)hChip8;
+    pChip8->draw_flag = value;
+}
+
+void chip8_set_key(CHIP8 hChip8, int key_index, int state)
+{
+    Chip8* pChip8 = (Chip8*)hChip8;
+    pChip8->key[key_index] = state;
+}
+
+void chip8_debug(CHIP8 hChip8, Boolean* enabled)
+{
+    Chip8* pChip8 = (Chip8*)hChip8;
+
+    int input, noc, set;
+    char confirm;
+    Boolean done = FALSE;
+    
+    printf("----------------------------------------------------------\n");
+    printf("Next Opcode: 0x%x\n", (pChip8->memory[pChip8->pc] << 8 | pChip8->memory[pChip8->pc + 1]) & 0xFFFF);
+    printf("I = 0x%x\n", pChip8->I);
+    printf("PC = 0x%x\n", pChip8->pc);
+    printf("SP = %d\n", pChip8->sp);
+    printf("Delay Timer = %d\n", pChip8->delay_timer);
+    printf("Sound Timer = %d\n\n", pChip8->sound_timer);
+
+    while (!done)
+    {
+        printf("1 - Memory, 2 - Registers, 3 - GFX, 4 - Stack, 5 - Keys, 6 - Set Keys, 7 - Continue Operation, 8 - Exit Debug\n");
+        printf("Input the number of what you would like to view: ");
+        noc = scanf("%d", &input);
+        while (noc != 1 | (input != 1 && input != 2 && input != 3 && input != 4 && input != 5 && input != 6 && input != 7 && input != 8))
+        {
+            printf("Invalid input! ");
+            noc = scanf("%d", &input); 
+        }
+        printf("\n");
+
+        switch (input)
+        {
+        case 1:
+            printf("Memory:\n");
+            for (int i = 0; i < MEMORY_SIZE; i++)
+            {
+                printf("0x%x ", pChip8->memory[i]);
+                if (i % 32 == 0 && i != 0)
+                    printf("\n");
+            }
+            printf("\n\n");
+            break;
+        case 2:
+            printf("Registers:\n");
+            for (int i = 0; i < CPU_REGISTERS; i++)
+            {
+                printf("V[%d] = 0x%x\n", i, pChip8->V[i]);
+            }
+            printf("\n");
+            break;
+        case 3:
+            printf("GFX:\n");
+            for (int r = 0; r < SCREEN_HEIGHT; r++)
+            {
+                for (int c = 0; c < SCREEN_WIDTH; c++)
+                {
+                    printf("%d ", pChip8->gfx[r * SCREEN_WIDTH + c]);
+                }
+                printf("\n");
+            }
+            break;
+        case 4:
+            printf("Stack:\n");
+            for (int i = 0; i < pChip8->sp; i++)
+            {
+                printf("Stack %d = 0x%x\n", i, pChip8->stack[i]);
+            }
+            printf("\n");
+            break;
+        case 5:
+            printf("Keys:\n");
+            for (int i = 0; i < NUM_OF_KEYS; i++)
+            {
+                printf("Key %x = %d\n", i, pChip8->key[i]);
+            }
+            printf("\n");
+            break;
+        case 6:
+            printf("Which key to set? (0 - 15, corresponds with the index of the array that holds the key) ");
+            noc = scanf("%d", &set);
+            if (set < 16 && set >= 0)
+            {
+                pChip8->key[set] = 1;
+                printf("Key %d set!\n", set);
+            }
+            else
+                printf("Invalid input!\n");
+            break;
+        case 7:
+            done = TRUE;
+            break;
+        case 8:
+            done = TRUE;
+            *enabled = FALSE;
+            break;
+        }
+
+        if (!done)
+        {
+            printf("Would you like to view anything else or continue execution? (y/n) ");
+            scanf("%c", &confirm);
+            while (confirm != 'y' && confirm != 'n')
+                scanf("%c", &confirm);
+
+            if (confirm == 'n')
+                done = TRUE;
+        }
+    }
+    printf("Continuing execution...\n");
 }
 
 void chip8_destory(CHIP8* phChip8)

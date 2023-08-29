@@ -8,3 +8,4 @@ set(SOURCES main.c chip8.c glad.c)
 add_executable(CHIP8_EMU ${SOURCES})
 
 target_link_libraries(CHIP8_EMU glfw3 OpenGL::GL)
+target_link_libraries(CHIP8_EMU winmm)
